@@ -1,5 +1,24 @@
 #include <LedControl.h>
 
+int btnL = 2;
+int btnR = 3;
+
+int btnLprevious = LOW;
+int btnLcurrent = LOW;
+
+int btnRprevious = LOW;
+int btnRcurrent = LOW;
+
+int x = 8;
+int y = 8;
+
+int height = 0;
+int blockType = 1;
+
+int timeNow = 0;
+int previousTime = 0;
+int delayTime = 1000;
+
 // Pin definitions for MAX7219
 #define DATA_IN 12
 #define CLK 11
@@ -7,6 +26,7 @@
 #define MAX_DEVICES 2
 LedControl lc = LedControl(DATA_IN, CLK, CS, MAX_DEVICES);
 int figure[8];
+
 int screen[8] = {
   0b00000000,
   0b00000000,
@@ -119,23 +139,9 @@ int S[8] =
     }
   }
 
- 
-void setup() {
-  // Initialize the MAX7219 with the number of devices
-  lc.shutdown(0, false);
-  lc.setIntensity(0, 8);      
-  lc.clearDisplay(0); 
-  randomSeed(A0);
-  Serial.begin(9600);
-}
-
-void loop() {
- for(int i = 0; i < 8 ; i++){
-  lc.setRow(0,i,screen[i]);
- }
-  int blockType = random(0, 7);
-
-switch(blockType) {
+  void getFigure(int num){
+    num = 0;
+    switch(num) {
     case 0:
         for(int i = 0; i < 8; i++) {
             figure[i] = O[i];
@@ -171,10 +177,61 @@ switch(blockType) {
             figure[i] = S[i];
         }
         break;
-    default:
-        // Handle invalid blockType values here
-        break;
+    }
+  }
+
+ 
+void setup() {
+  // Initialize the MAX7219 with the number of devices
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 8);      
+  lc.clearDisplay(0); 
+  randomSeed(analogRead(A0));
+  Serial.begin(9600);
 }
 
+void loop() {
+  timeNow = millis();
+ for(int i = 0; i < 8 ; i++){
+  lc.setRow(0,i,screen[i]);
+ }
+  if(height == 0){
+    Serial.println(random(7));
+   getFigure(random(7));
+  }
+  
+  btnLcurrent = digitalRead(btnL);
+  btnRcurrent = digitalRead(btnR);
+
+  if(btnLcurrent != btnLprevious && btnLcurrent == HIGH){
+    for(int i = 0;i<y;i++){
+      if(figure[i] << 1 > 255)break;
+        figure[i] = figure[i] << 1;
+    }
+  }
+  
+  if(btnRcurrent != btnRprevious && btnRcurrent == HIGH){
+    for(int i = 0;i<y;i++){
+      if(figure[i] >> 1 == 1)break;
+        figure[i] = figure[i] >> 1;
+    }
+  }
+
+  if(timeNow - previousTime <= delayTime){
+     previousTime = timeNow;
+     
+      height++;
+  }
+
+  for(int i = 0;i<y;i++){
+    screen[i] = figure[i]; 
+  }
+
+  for(int i = 0;i<y;i++){
+    lc.setRow(0,i,screen[i]);
+  }
+
+  btnLprevious = btnLcurrent;
+  btnRprevious = btnRcurrent;
 
 }
