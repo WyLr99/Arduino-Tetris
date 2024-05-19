@@ -27,6 +27,7 @@ int delayTime = 1000;
 LedControl lc = LedControl(DATA_IN, CLK, CS, MAX_DEVICES);
 int figure[8];
 
+
 int screen[8] = {
   0b00000000,
   0b00000000,
@@ -121,6 +122,7 @@ int S[8] =
   0b00000000,
   0b00000000
 };
+  
 
   void checkCollision() {
     // Check if the block has collided with another block
@@ -139,8 +141,7 @@ int S[8] =
     }
   }
 
-  void getFigure(int num){
-    num = 0;
+  void getNextFigure(int num){
     switch(num) {
     case 0:
         for(int i = 0; i < 8; i++) {
@@ -191,13 +192,14 @@ void setup() {
 }
 
 void loop() {
+
   timeNow = millis();
  for(int i = 0; i < 8 ; i++){
   lc.setRow(0,i,screen[i]);
  }
   if(height == 0){
     Serial.println(random(7));
-   getFigure(random(7));
+   getNextFigure(random(7));
   }
   
   btnLcurrent = digitalRead(btnL);
