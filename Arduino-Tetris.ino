@@ -1,12 +1,18 @@
 #include <LedControl.h>
+#include <MFRC522.h>
+#include <MFRC522Extended.h>
 
 // Pin definitions for MAX7219
-#define DATA_IN 12
-#define CLK 11
-#define CS 10
+#define DATA_IN 7
+#define CLK 5
+#define CS 6
 #define MAX_DEVICES 1 // Adjusted to 1 as you are using one 8x8 matrix
 
 LedControl lc = LedControl(DATA_IN, CLK, CS, MAX_DEVICES);
+
+#define RST_PIN 9    
+#define SS_PIN 10    
+MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 // Button pin definitions
 int btnL = 2;
@@ -42,11 +48,27 @@ int I[4] = { 0b10000000, 0b10000000, 0b10000000, 0b10000000 };
 int Z[3] = { 0b11000000, 0b01100000, 0b00000000 };
 int S[3] = { 0b01100000, 0b11000000, 0b00000000 };
 
+bool active = false;
+
+void loadNewFigure() {
+  blockType = random(7);
+  getFigure(blockType);
+  x = 0;
+  y = -figureHeight(); // Start the figure above the visible area
+
+  // Reset the move timers when a new figure is loaded
+  moveLeftTime = millis();
+  moveRightTime = millis();
+}
+
 void setup() {
   // Initialize the MAX7219 with the number of devices
   lc.shutdown(0, false);
   lc.setIntensity(0, 8);
   lc.clearDisplay(0);
+
+  SPI.begin();          
+  mfrc522.PCD_Init(); 
 
   randomSeed(analogRead(A0));
   Serial.begin(9600);
@@ -60,54 +82,50 @@ void setup() {
 }
 
 void loop() {
-  timeNow = millis();
-
-  // Read button states
-  btnLcurrent = digitalRead(btnL);
-  btnRcurrent = digitalRead(btnR);
-
-  // Handle left button press
-  if (btnLcurrent == HIGH) {
-    if (timeNow - moveLeftTime >= moveDelayTime) {
-      moveLeftTime = timeNow;
-      moveLeft();
+    if (!active) { // if not active
+    if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+      active = true;
+      Serial.println("Card detected and activated!");
     }
   }
+  else{
+    Serial.println("active");
+    timeNow = millis();
 
-  // Handle right button press
-  if (btnRcurrent == HIGH) {
-    if (timeNow - moveRightTime >= moveDelayTime) {
-      moveRightTime = timeNow;
-      moveRight();
+    // Read button states
+    btnLcurrent = digitalRead(btnL);
+    btnRcurrent = digitalRead(btnR);
+
+    // Handle left button press
+    if (btnLcurrent == HIGH) {
+      if (timeNow - moveLeftTime >= moveDelayTime) {
+        moveLeftTime = timeNow;
+        moveLeft();
+      }
+    }
+
+    // Handle right button press
+    if (btnRcurrent == HIGH) {
+      if (timeNow - moveRightTime >= moveDelayTime) {
+        moveRightTime = timeNow;
+        moveRight();
+      }
+    }
+
+    // Handle piece drop based on delay time
+    if (timeNow - previousTime >= delayTime) {
+      previousTime = timeNow;
+      dropFigure();
+    }
+
+    // Update the screen with the current state
+    updateScreen();
+
+    if (checkLose()) {
+      Serial.println("You lost!");
+      active = false;
     }
   }
-
-  // Handle piece drop based on delay time
-  if (timeNow - previousTime >= delayTime) {
-    previousTime = timeNow;
-    dropFigure();
-  }
-
-  // Update the screen with the current state
-  updateScreen();
-
-  if (checkLose()) {
-    Serial.println("You lost!");
-    while (true) { // Stop the game
-      delay(1000);
-    }
-  }
-}
-
-void loadNewFigure() {
-  blockType = random(7);
-  getFigure(blockType);
-  x = 0;
-  y = -figureHeight(); // Start the figure above the visible area
-
-  // Reset the move timers when a new figure is loaded
-  moveLeftTime = millis();
-  moveRightTime = millis();
 }
 
 
@@ -123,6 +141,7 @@ void getFigure(int num) {
     case 6: memcpy(figure, S, sizeof(S)); break;
   }
 }
+
 
 void moveLeft() {
   if (canMoveLeft()) {
@@ -228,10 +247,5 @@ void checkLine() {
 }
 
 int figureHeight() {
-  for (int i = 7; i >= 0; i--) {
-    if (figure[i] != 0) {
-      return i + 1;
-    }
-  }
-  return 0;
+  for (int i = 7; i >= 0; i--){}
 }
