@@ -13,9 +13,7 @@ int btnL = 2;
 int btnR = 3;
 
 // Button state variables
-int btnLprevious = LOW;
 int btnLcurrent = LOW;
-int btnRprevious = LOW;
 int btnRcurrent = LOW;
 
 // Piece position and type
@@ -26,7 +24,10 @@ int blockType = 0;
 // Timing variables
 unsigned long timeNow = 0;
 unsigned long previousTime = 0;
+unsigned long moveLeftTime = 0;
+unsigned long moveRightTime = 0;
 int delayTime = 500;
+int moveDelayTime = 250; // Delay for continuous movement
 
 // Screen and figure representation
 int figure[8];
@@ -66,13 +67,19 @@ void loop() {
   btnRcurrent = digitalRead(btnR);
 
   // Handle left button press
-  if (btnLcurrent != btnLprevious && btnLcurrent == HIGH) {
-    moveLeft();
+  if (btnLcurrent == HIGH) {
+    if (timeNow - moveLeftTime >= moveDelayTime) {
+      moveLeftTime = timeNow;
+      moveLeft();
+    }
   }
 
   // Handle right button press
-  if (btnRcurrent != btnRprevious && btnRcurrent == HIGH) {
-    moveRight();
+  if (btnRcurrent == HIGH) {
+    if (timeNow - moveRightTime >= moveDelayTime) {
+      moveRightTime = timeNow;
+      moveRight();
+    }
   }
 
   // Handle piece drop based on delay time
@@ -84,12 +91,11 @@ void loop() {
   // Update the screen with the current state
   updateScreen();
 
-  // Update previous button states
-  btnLprevious = btnLcurrent;
-  btnRprevious = btnRcurrent;
-
   if (checkLose()) {
-    Serial.print("you Lost");
+    Serial.println("You lost!");
+    while (true) { // Stop the game
+      delay(1000);
+    }
   }
 }
 
@@ -97,8 +103,13 @@ void loadNewFigure() {
   blockType = random(7);
   getFigure(blockType);
   x = 0;
-  y = 0;
+  y = -figureHeight(); // Start the figure above the visible area
+
+  // Reset the move timers when a new figure is loaded
+  moveLeftTime = millis();
+  moveRightTime = millis();
 }
+
 
 void getFigure(int num) {
   memset(figure, 0, sizeof(figure));
@@ -115,22 +126,24 @@ void getFigure(int num) {
 
 void moveLeft() {
   if (canMoveLeft()) {
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < figureHeight(); i++) {
       figure[i] <<= 1;
     }
+    x--;
   }
 }
 
 void moveRight() {
   if (canMoveRight()) {
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < figureHeight(); i++) {
       figure[i] >>= 1;
     }
+    x++;
   }
 }
 
 bool canMoveLeft() {
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < figureHeight(); i++) {
     if ((figure[i] & 0b10000000) != 0 || (figure[i] << 1 & screen[y + i]) != 0) {
       return false;
     }
@@ -139,7 +152,7 @@ bool canMoveLeft() {
 }
 
 bool canMoveRight() {
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < figureHeight(); i++) {
     if ((figure[i] & 0b00000001) != 0 || (figure[i] >> 1 & screen[y + i]) != 0) {
       return false;
     }
@@ -148,7 +161,7 @@ bool canMoveRight() {
 }
 
 void dropFigure() {
-  if (y + 1 >= 8 || checkCollision(y + 1)) {
+  if (y + figureHeight() >= 8 || checkCollision(y + 1)) {
     mergeFigureToScreen();
     loadNewFigure();
   } else {
@@ -157,8 +170,9 @@ void dropFigure() {
 }
 
 bool checkCollision(int newY) {
-  for (int i = 0; i < 8; i++) {
-    if ((figure[i] & screen[newY + i]) != 0) {
+  if (newY < 0) return false; // No collision if the figure is above the screen
+  for (int i = 0; i < figureHeight(); i++) {
+    if (newY + i < 8 && (figure[i] & screen[newY + i]) != 0) {
       return true;
     }
   }
@@ -166,31 +180,33 @@ bool checkCollision(int newY) {
 }
 
 bool checkLose() {
-  if (screen[0] > 0) return true;
+  // Check the top row for any blocks
+  if (screen[0] != 0) {
+    return true;
+  }
   return false;
 }
 
 void mergeFigureToScreen() {
-  for (int i = 0; i < 8; i++) {
-    screen[y + i] |= figure[i];
+  for (int i = 0; i < figureHeight(); i++) {
+    if (y + i >= 0 && y + i < 8) {
+      screen[y + i] |= figure[i];
+    }
   }
   checkLine();
 }
 
 void updateScreen() {
-  // Clear the display
-  for (int i = 0; i < 8; i++) {
-    lc.setRow(0, i, 0);
-  }
-
+  // Clear the display and redraw
+  lc.clearDisplay(0);
   // Display the screen state
   for (int i = 0; i < 8; i++) {
     lc.setRow(0, i, screen[i]);
   }
 
   // Display the current figure
-  for (int i = 0; i < 8; i++) {
-    if (y + i < 8) {
+  for (int i = 0; i < figureHeight(); i++) {
+    if (y + i >= 0 && y + i < 8) {
       lc.setRow(0, y + i, screen[y + i] | figure[i]);
     }
   }
@@ -209,4 +225,13 @@ void checkLine() {
       i--;
     }
   }
+}
+
+int figureHeight() {
+  for (int i = 7; i >= 0; i--) {
+    if (figure[i] != 0) {
+      return i + 1;
+    }
+  }
+  return 0;
 }
