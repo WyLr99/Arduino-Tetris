@@ -1,12 +1,16 @@
 #include <LedControl.h>
 #include <MFRC522.h>
 #include <MFRC522Extended.h>
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27,16,2); 
 
 // Pin definitions for MAX7219
 #define DATA_IN 7
 #define CLK 5
 #define CS 6
-#define MAX_DEVICES 1 // Adjusted to 1 as you are using one 8x8 matrix
+#define MAX_DEVICES 2 // Adjusted to 2 as you are using two 8x8 matrices
 
 LedControl lc = LedControl(DATA_IN, CLK, CS, MAX_DEVICES);
 
@@ -15,12 +19,14 @@ LedControl lc = LedControl(DATA_IN, CLK, CS, MAX_DEVICES);
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 // Button pin definitions
-int btnL = 2;
-int btnR = 3;
+int btnL = 3;
+int btnR = 2;
 
 // Button state variables
 int btnLcurrent = LOW;
 int btnRcurrent = LOW;
+int btnLprevious = LOW;
+int btnRprevious = LOW;
 
 // Piece position and type
 int x = 0; // x position of the piece (column)
@@ -28,16 +34,16 @@ int y = 0; // y position of the piece (row)
 int blockType = 0;
 
 // Timing variables
-unsigned long timeNow = 0;
-unsigned long previousTime = 0;
-unsigned long moveLeftTime = 0;
-unsigned long moveRightTime = 0;
+int timeNow = 0;
+int previousTime = 0;
+int moveLeftTime = 0;
+int moveRightTime = 0;
 int delayTime = 500;
 int moveDelayTime = 250; // Delay for continuous movement
 
 // Screen and figure representation
 int figure[8];
-int screen[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+int screen[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 // Blocks definition
 int O[2] = { 0b11000000, 0b11000000 };
@@ -62,17 +68,24 @@ void loadNewFigure() {
 }
 
 void setup() {
+  
   // Initialize the MAX7219 with the number of devices
-  lc.shutdown(0, false);
-  lc.setIntensity(0, 8);
-  lc.clearDisplay(0);
+  for (int i = 0; i < MAX_DEVICES; i++) {
+    lc.shutdown(i, false);
+    lc.setIntensity(i, 8);
+    lc.clearDisplay(i);
+  }
 
   SPI.begin();          
   mfrc522.PCD_Init(); 
 
   randomSeed(analogRead(A0));
+  
+  lcd.init();      
+  lcd.backlight();
+  
   Serial.begin(9600);
-
+  Serial.print("start");
   // Initialize button pins
   pinMode(btnL, INPUT);
   pinMode(btnR, INPUT);
@@ -82,14 +95,18 @@ void setup() {
 }
 
 void loop() {
-    if (!active) { // if not active
+  if (!active) { // if not active
     if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
       active = true;
+      resetGame();
       Serial.println("Card detected and activated!");
     }
+    lcd.setCursor(0,0);
+    lcd.print("Scann card to");
+    lcd.setCursor(0,1);
+    lcd.print("play");
   }
   else{
-    Serial.println("active");
     timeNow = millis();
 
     // Read button states
@@ -97,20 +114,25 @@ void loop() {
     btnRcurrent = digitalRead(btnR);
 
     // Handle left button press
-    if (btnLcurrent == HIGH) {
-      if (timeNow - moveLeftTime >= moveDelayTime) {
-        moveLeftTime = timeNow;
-        moveLeft();
-      }
+    if (btnLcurrent == HIGH && btnLprevious == LOW) {
+      moveLeftTime = timeNow;
+      moveLeft();
+    } else if (btnLcurrent == HIGH && timeNow - moveLeftTime >= moveDelayTime) {
+      moveLeftTime = timeNow;
+      moveLeft();
     }
 
     // Handle right button press
-    if (btnRcurrent == HIGH) {
-      if (timeNow - moveRightTime >= moveDelayTime) {
-        moveRightTime = timeNow;
-        moveRight();
-      }
+    if (btnRcurrent == HIGH && btnRprevious == LOW) {
+      moveRightTime = timeNow;
+      moveRight();
+    } else if (btnRcurrent == HIGH && timeNow - moveRightTime >= moveDelayTime) {
+      moveRightTime = timeNow;
+      moveRight();
     }
+
+    btnLprevious = btnLcurrent;
+    btnRprevious = btnRcurrent;
 
     // Handle piece drop based on delay time
     if (timeNow - previousTime >= delayTime) {
@@ -128,7 +150,6 @@ void loop() {
   }
 }
 
-
 void getFigure(int num) {
   memset(figure, 0, sizeof(figure));
   switch (num) {
@@ -141,7 +162,6 @@ void getFigure(int num) {
     case 6: memcpy(figure, S, sizeof(S)); break;
   }
 }
-
 
 void moveLeft() {
   if (canMoveLeft()) {
@@ -180,7 +200,7 @@ bool canMoveRight() {
 }
 
 void dropFigure() {
-  if (y + figureHeight() >= 8 || checkCollision(y + 1)) {
+  if (y + figureHeight() >= 16 || checkCollision(y + 1)) {
     mergeFigureToScreen();
     loadNewFigure();
   } else {
@@ -191,7 +211,7 @@ void dropFigure() {
 bool checkCollision(int newY) {
   if (newY < 0) return false; // No collision if the figure is above the screen
   for (int i = 0; i < figureHeight(); i++) {
-    if (newY + i < 8 && (figure[i] & screen[newY + i]) != 0) {
+    if (newY + i < 16 && (figure[i] & screen[newY + i]) != 0) {
       return true;
     }
   }
@@ -208,7 +228,7 @@ bool checkLose() {
 
 void mergeFigureToScreen() {
   for (int i = 0; i < figureHeight(); i++) {
-    if (y + i >= 0 && y + i < 8) {
+    if (y + i >= 0 && y + i < 16) {
       screen[y + i] |= figure[i];
     }
   }
@@ -217,22 +237,33 @@ void mergeFigureToScreen() {
 
 void updateScreen() {
   // Clear the display and redraw
-  lc.clearDisplay(0);
+  for (int i = 0; i < MAX_DEVICES; i++) {
+    lc.clearDisplay(i);
+  }
+  
   // Display the screen state
-  for (int i = 0; i < 8; i++) {
-    lc.setRow(0, i, screen[i]);
+  for (int i = 0; i < 16; i++) {
+    if (i < 8) {
+      lc.setRow(0, i, screen[i]);
+    } else {
+      lc.setRow(1, i - 8, screen[i]);
+    }
   }
 
   // Display the current figure
   for (int i = 0; i < figureHeight(); i++) {
-    if (y + i >= 0 && y + i < 8) {
-      lc.setRow(0, y + i, screen[y + i] | figure[i]);
+    if (y + i >= 0 && y + i < 16) {
+      if (y + i < 8) {
+        lc.setRow(0, y + i, screen[y + i] | figure[i]);
+      } else {
+        lc.setRow(1, y + i - 8, screen[y + i] | figure[i]);
+      }
     }
   }
 }
 
 void checkLine() {
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 16; i++) {
     if (screen[i] == 0b11111111) {
       // Shift all rows above down
       for (int j = i; j > 0; j--) {
@@ -247,5 +278,18 @@ void checkLine() {
 }
 
 int figureHeight() {
-  for (int i = 7; i >= 0; i--){}
+  for (int i = 7; i >= 0; i--) {
+    if (figure[i] != 0) {
+      return i + 1;
+    }
+  }
+  return 0;
+}
+
+void resetGame(){
+  lc.clearDisplay(0);
+  lc.clearDisplay(1);
+
+   figure[8];
+   screen[16];
 }
