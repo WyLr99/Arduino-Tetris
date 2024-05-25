@@ -19,8 +19,10 @@ LedControl lc = LedControl(DATA_IN, CLK, CS, MAX_DEVICES);
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 // Button pin definitions
-int btnL = 3;
-int btnR = 2;
+int btnL = 2;
+int btnR = 4;
+
+int piezo = 3;
 
 // Button state variables
 int btnLcurrent = LOW;
@@ -55,6 +57,8 @@ int Z[3] = { 0b11000000, 0b01100000, 0b00000000 };
 int S[3] = { 0b01100000, 0b11000000, 0b00000000 };
 
 bool active = false;
+
+int score = 0; // score
 
 void loadNewFigure() {
   blockType = random(7);
@@ -101,12 +105,19 @@ void loop() {
       resetGame();
       Serial.println("Card detected and activated!");
     }
+    lcd.clear();
     lcd.setCursor(0,0);
     lcd.print("Scann card to");
     lcd.setCursor(0,1);
     lcd.print("play");
   }
   else{
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Your score : ");
+    lcd.setCursor(0,1);
+    lcd.print(score);
+    
     timeNow = millis();
 
     // Read button states
@@ -117,18 +128,22 @@ void loop() {
     if (btnLcurrent == HIGH && btnLprevious == LOW) {
       moveLeftTime = timeNow;
       moveLeft();
+      tone(piezo,350,200);
     } else if (btnLcurrent == HIGH && timeNow - moveLeftTime >= moveDelayTime) {
       moveLeftTime = timeNow;
       moveLeft();
+      tone(piezo,350,200);
     }
 
     // Handle right button press
     if (btnRcurrent == HIGH && btnRprevious == LOW) {
       moveRightTime = timeNow;
       moveRight();
+      tone(piezo,400,200);
     } else if (btnRcurrent == HIGH && timeNow - moveRightTime >= moveDelayTime) {
       moveRightTime = timeNow;
       moveRight();
+      tone(piezo,400,200);
     }
 
     btnLprevious = btnLcurrent;
@@ -201,6 +216,7 @@ bool canMoveRight() {
 
 void dropFigure() {
   if (y + figureHeight() >= 16 || checkCollision(y + 1)) {
+    score++;
     mergeFigureToScreen();
     loadNewFigure();
   } else {
@@ -212,6 +228,7 @@ bool checkCollision(int newY) {
   if (newY < 0) return false; // No collision if the figure is above the screen
   for (int i = 0; i < figureHeight(); i++) {
     if (newY + i < 16 && (figure[i] & screen[newY + i]) != 0) {
+      score++;
       return true;
     }
   }
@@ -265,6 +282,7 @@ void updateScreen() {
 void checkLine() {
   for (int i = 0; i < 16; i++) {
     if (screen[i] == 0b11111111) {
+      score += 10;
       // Shift all rows above down
       for (int j = i; j > 0; j--) {
         screen[j] = screen[j - 1];
@@ -287,9 +305,10 @@ int figureHeight() {
 }
 
 void resetGame(){
-  lc.clearDisplay(0);
-  lc.clearDisplay(1);
-
-   figure[8];
-   screen[16];
+  memset(screen, 0, sizeof(screen));
+  score = 0;
+  loadNewFigure();
+  previousTime = millis();
+  moveLeftTime = millis();
+  moveRightTime = millis();
 }
