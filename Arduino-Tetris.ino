@@ -37,6 +37,7 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 int btnL = 2;
 int btnR = 4;
+int btnRotate = 8;
 
 int piezo = 3;
 
@@ -44,6 +45,8 @@ int btnLcurrent = LOW;
 int btnRcurrent = LOW;
 int btnLprevious = LOW;
 int btnRprevious = LOW;
+int btnRotatecurrent = LOW;
+int btnRotateprevious = LOW;
 
 // Piece position and type
 int x = 0; // x position of the piece (column)
@@ -58,26 +61,72 @@ int delayTime = 500;
 int moveDelayTime = 250; 
 
 int figure[8];
+int currentFigure;
+int angle = 0;
 int screen[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-int O[2] = { 0b11000000, 0b11000000 };
-int L[4] = { 0b10000000, 0b10000000, 0b11000000, 0b00000000 };
-int J[4] = { 0b00000001, 0b00000001, 0b00000011, 0b00000000 };
-int T[3] = { 0b00010000, 0b00111000, 0b00000000 };
-int I[4] = { 0b10000000, 0b10000000, 0b10000000, 0b10000000 };
-int Z[3] = { 0b11000000, 0b01100000, 0b00000000 };
-int S[3] = { 0b01100000, 0b11000000, 0b00000000 };
+int O[4][2] = {
+  { 0b11000000, 0b11000000 },
+  { 0b11000000, 0b11000000 },
+  { 0b11000000, 0b11000000 },
+  { 0b11000000, 0b11000000 }
+};
+
+int L[4][4] = {
+  { 0b10000000, 0b10000000, 0b11000000, 0b00000000 },
+  { 0b11100000, 0b10000000, 0b00000000, 0b00000000 },
+  { 0b11000000, 0b01000000, 0b01000000, 0b00000000 },
+  { 0b00000000, 0b00100000, 0b11100000, 0b00000000 }
+};
+
+int J[4][4] = {
+  { 0b00000001, 0b00000001, 0b00000011, 0b00000000 },
+  { 0b00000000, 0b00000100, 0b00000111, 0b00000000 },
+  { 0b00000011, 0b00000010, 0b00000010, 0b00000000 },
+  { 0b00000000, 0b00000111, 0b00000001, 0b00000000 }
+};
+
+int T[4][3] = {
+  { 0b00010000, 0b00111000, 0b00000000 },
+  { 0b00010000, 0b00011000, 0b00010000 },
+  { 0b00000000, 0b00111000, 0b00010000 },
+  { 0b00010000, 0b00110000, 0b00010000 }
+};
+
+int I[4][4] = {
+  { 0b10000000, 0b10000000, 0b10000000, 0b10000000 },
+  { 0b00000000, 0b11110000, 0b00000000, 0b00000000 },
+  { 0b00100000, 0b00100000, 0b00100000, 0b00100000 },
+  { 0b00000000, 0b00000000, 0b11110000, 0b00000000 }
+};
+
+int Z[4][3] = {
+  { 0b11000000, 0b01100000, 0b00000000 },
+  { 0b00100000, 0b01100000, 0b01000000 },
+  { 0b00000000, 0b11000000, 0b01100000 },
+  { 0b10000000, 0b11000000, 0b01000000 }
+};
+
+int S[4][3] = {
+  { 0b01100000, 0b11000000, 0b00000000 },
+  { 0b01000000, 0b01100000, 0b00100000 },
+  { 0b00000000, 0b01100000, 0b11000000 },
+  { 0b10000000, 0b11000000, 0b01000000 }
+};
+
 
 int blockType = 0;
 
-bool active = false;
+bool active = true;
 
-int score = 0; 
+int score = 0;
 
-int lostCount =0;
+int lostCount = 0;
 
 void loadNewFigure() {
   blockType = random(7);
+  currentFigure = blockType;
+  angle = 0;
   getFigure(blockType);
   x = 0;
   y = -figureHeight(); // Start the figure above the visible area
@@ -105,6 +154,7 @@ void setup() {
  
   pinMode(btnL, INPUT);
   pinMode(btnR, INPUT);
+  pinMode(btnRotate, INPUT);
 
   loadNewFigure();// Load the first figure
 }
@@ -119,24 +169,34 @@ void loop() {
     if(lostCount > 0){
       lcd.clear();
       lcd.setCursor(0,0);
-      lcd.print("You lost ");
-      lcd.print(lostCount);
-      lcd.print(" times");
+      lcd.print("You Scored: ");
       lcd.setCursor(0,1);
-      lcd.print("Scann card again");
+      lcd.print(score);
+      delay(500);
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("You Lost ");
+      lcd.print(lostCount);
+      if(lostCount == 1)
+        lcd.print(" Time");
+      else
+        lcd.print(" Times");
+      lcd.setCursor(0,1);
+      lcd.print("Scan Card Again");
+      delay(500);
     }
     else{
       lcd.clear();
       lcd.setCursor(0,0);
-      lcd.print("Scann card to");
+      lcd.print("Scan Card to");
       lcd.setCursor(0,1);
-      lcd.print("play");
+      lcd.print("Play");
     }
   }
   else{
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print("Your score : ");
+    lcd.print("Your Score:");
     lcd.setCursor(0,1);
     lcd.print(score);
     
@@ -144,6 +204,7 @@ void loop() {
 
     btnLcurrent = digitalRead(btnL);
     btnRcurrent = digitalRead(btnR);
+    btnRotatecurrent = digitalRead(btnRotate);
 
     if (btnLcurrent != btnLprevious && btnLcurrent == HIGH) {
       moveLeftTime = timeNow;
@@ -164,9 +225,15 @@ void loop() {
       moveRight();
       tone(piezo,400,200);
     }
+    if(btnRotatecurrent != btnRotateprevious && btnRotatecurrent == HIGH){
+      rotateFigure(currentFigure, angle);
+      angle++;
+      tone(piezo,450,200);
+    }
 
     btnLprevious = btnLcurrent;
     btnRprevious = btnRcurrent;
+    btnRotateprevious = btnRotatecurrent;
 
     if (timeNow - previousTime >= delayTime) { // piece drop with delay time
       previousTime = timeNow;
@@ -181,17 +248,70 @@ void loop() {
     }
   }
 }
+void rotateFigure(int num, int angle) {
+  int oldLeft = x;
+  int oldRight = x + figureWidth() - 1;
 
+  int newAngle = (angle + 1) % 4;
+
+  if (canRotate(newAngle)) {
+    getFigureRotated(num, newAngle);
+
+    int newLeft = x;
+    int newRight = x + figureWidth() - 1;
+
+    // Calculate the necessary shifts to align the shape properly after rotation
+    int shiftLeft = oldLeft - newLeft;
+    int shiftRight = oldRight - newRight;
+
+    // Shift the shape to its correct position
+    if (shiftLeft > 0) {
+      for (int i = 0; i < shiftLeft; i++) {
+        moveLeft();
+      }
+    } else if (shiftRight < 0) {
+      for (int i = 0; i < -shiftRight; i++) {
+        moveRight();
+      }
+    }
+  }
+}
+
+bool canRotate(int newAngle) {
+  int tempFigure[8];
+  memcpy(tempFigure, figure, sizeof(figure));
+  int tempAngle = angle;
+  angle = newAngle;
+  getFigure(currentFigure);
+  angle = tempAngle;
+  for (int i = 0; i < figureHeight(); i++) {
+    if ((figure[i] & screen[y + i]) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
 void getFigure(int num) {
   memset(figure, 0, sizeof(figure));
   switch (num) {
-    case 0: memcpy(figure, O, sizeof(O)); break;
-    case 1: memcpy(figure, L, sizeof(L)); break;
-    case 2: memcpy(figure, J, sizeof(J)); break;
-    case 3: memcpy(figure, T, sizeof(T)); break;
-    case 4: memcpy(figure, I, sizeof(I)); break;
-    case 5: memcpy(figure, Z, sizeof(Z)); break;
-    case 6: memcpy(figure, S, sizeof(S)); break;
+    case 0: memcpy(figure, O[angle], sizeof(O[angle])); break;
+    case 1: memcpy(figure, L[angle], sizeof(L[angle])); break;
+    case 2: memcpy(figure, J[angle], sizeof(J[angle])); break;
+    case 3: memcpy(figure, T[angle], sizeof(T[angle])); break;
+    case 4: memcpy(figure, I[angle], sizeof(I[angle])); break;
+    case 5: memcpy(figure, Z[angle], sizeof(Z[angle])); break;
+    case 6: memcpy(figure, S[angle], sizeof(S[angle])); break;
+  }
+}
+void getFigureRotated(int num, int angle) {
+  switch (num) {
+    case 0: memcpy(figure, O[angle], sizeof(O[angle])); break;
+    case 1: memcpy(figure, L[angle], sizeof(L[angle])); break;
+    case 2: memcpy(figure, J[angle], sizeof(J[angle])); break;
+    case 3: memcpy(figure, T[angle], sizeof(T[angle])); break;
+    case 4: memcpy(figure, I[angle], sizeof(I[angle])); break;
+    case 5: memcpy(figure, Z[angle], sizeof(Z[angle])); break;
+    case 6: memcpy(figure, S[angle], sizeof(S[angle])); break;
   }
 }
 
@@ -315,6 +435,22 @@ int figureHeight() {
   }
   return 0;
 }
+int figureWidth() {
+  int maxWidth = 0;
+  for (int i = 0; i < figureHeight(); i++) {
+    int width = 0;
+    for (int j = 0; j < 8; j++) {
+      if (figure[i] & (1 << j)) {
+        width = j + 1;
+      }
+    }
+    if (width > maxWidth) {
+      maxWidth = width;
+    }
+  }
+  return maxWidth;
+}
+
 
 void resetGame(){
   memset(screen, 0, sizeof(screen));
