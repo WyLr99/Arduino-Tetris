@@ -117,7 +117,7 @@ int S[4][3] = {
 
 int blockType = 0;
 
-bool active = true;
+bool active = false;
 
 int score = 0;
 
@@ -172,7 +172,7 @@ void loop() {
       lcd.print("You Scored: ");
       lcd.setCursor(0,1);
       lcd.print(score);
-      delay(500);
+      delay(1000);
       lcd.clear();
       lcd.setCursor(0,0);
       lcd.print("You Lost ");
@@ -183,7 +183,7 @@ void loop() {
         lcd.print(" Times");
       lcd.setCursor(0,1);
       lcd.print("Scan Card Again");
-      delay(500);
+      delay(1000 );
     }
     else{
       lcd.clear();
