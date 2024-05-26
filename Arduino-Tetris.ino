@@ -142,12 +142,10 @@ void loop() {
     
     timeNow = millis();
 
-    // Read button states
     btnLcurrent = digitalRead(btnL);
     btnRcurrent = digitalRead(btnR);
 
-    // Handle left button press
-    if (btnLcurrent == HIGH && btnLprevious == LOW) {
+    if (btnLcurrent != btnLprevious && btnLcurrent == HIGH) {
       moveLeftTime = timeNow;
       moveLeft();
       tone(piezo,350,200);
@@ -157,8 +155,7 @@ void loop() {
       tone(piezo,350,200);
     }
 
-    // Handle right button press
-    if (btnRcurrent == HIGH && btnRprevious == LOW) {
+    if (btnRcurrent != btnRprevious && btnRcurrent == HIGH) {
       moveRightTime = timeNow;
       moveRight();
       tone(piezo,400,200);
@@ -171,13 +168,11 @@ void loop() {
     btnLprevious = btnLcurrent;
     btnRprevious = btnRcurrent;
 
-    // Handle piece drop based on delay time
-    if (timeNow - previousTime >= delayTime) {
+    if (timeNow - previousTime >= delayTime) { // piece drop with delay time
       previousTime = timeNow;
       dropFigure();
     }
 
-    // Update the screen with the current state
     updateScreen();
 
     if (checkLose()) {
