@@ -4,13 +4,30 @@
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 
+#define NOTE_C4  262
+#define NOTE_D4  294
+#define NOTE_E4  330
+#define NOTE_F4  349
+#define NOTE_G4  392
+#define NOTE_A4  440
+#define NOTE_B4  494
+#define NOTE_C5  523
+
+int melody[] = {
+  NOTE_C4, NOTE_D4, NOTE_E4, NOTE_F4, NOTE_G4, NOTE_A4, NOTE_B4, NOTE_C5
+};
+
+int noteDurations[] = {
+  200, 200, 200, 200, 200, 200, 200, 200
+};
+
 LiquidCrystal_I2C lcd(0x27,16,2); 
 
-// Pin definitions for MAX7219
+// Pin definitions for matrix
 #define DATA_IN 7
 #define CLK 5
 #define CS 6
-#define MAX_DEVICES 2 // Adjusted to 2 as you are using two 8x8 matrices
+#define MAX_DEVICES 2
 
 LedControl lc = LedControl(DATA_IN, CLK, CS, MAX_DEVICES);
 
@@ -18,13 +35,11 @@ LedControl lc = LedControl(DATA_IN, CLK, CS, MAX_DEVICES);
 #define SS_PIN 10    
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
-// Button pin definitions
 int btnL = 2;
 int btnR = 4;
 
 int piezo = 3;
 
-// Button state variables
 int btnLcurrent = LOW;
 int btnRcurrent = LOW;
 int btnLprevious = LOW;
@@ -33,7 +48,6 @@ int btnRprevious = LOW;
 // Piece position and type
 int x = 0; // x position of the piece (column)
 int y = 0; // y position of the piece (row)
-int blockType = 0;
 
 // Timing variables
 int timeNow = 0;
@@ -41,13 +55,11 @@ int previousTime = 0;
 int moveLeftTime = 0;
 int moveRightTime = 0;
 int delayTime = 500;
-int moveDelayTime = 250; // Delay for continuous movement
+int moveDelayTime = 250; 
 
-// Screen and figure representation
 int figure[8];
 int screen[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-// Blocks definition
 int O[2] = { 0b11000000, 0b11000000 };
 int L[4] = { 0b10000000, 0b10000000, 0b11000000, 0b00000000 };
 int J[4] = { 0b00000001, 0b00000001, 0b00000011, 0b00000000 };
@@ -56,9 +68,13 @@ int I[4] = { 0b10000000, 0b10000000, 0b10000000, 0b10000000 };
 int Z[3] = { 0b11000000, 0b01100000, 0b00000000 };
 int S[3] = { 0b01100000, 0b11000000, 0b00000000 };
 
+int blockType = 0;
+
 bool active = false;
 
-int score = 0; // score
+int score = 0; 
+
+int lostCount =0;
 
 void loadNewFigure() {
   blockType = random(7);
@@ -66,15 +82,12 @@ void loadNewFigure() {
   x = 0;
   y = -figureHeight(); // Start the figure above the visible area
 
-  // Reset the move timers when a new figure is loaded
-  moveLeftTime = millis();
+  moveLeftTime = millis();// Reset the move timers when a new figure is loaded
   moveRightTime = millis();
 }
 
 void setup() {
-  
-  // Initialize the MAX7219 with the number of devices
-  for (int i = 0; i < MAX_DEVICES; i++) {
+  for (int i = 0; i < MAX_DEVICES; i++) { // Initialize the matrix
     lc.shutdown(i, false);
     lc.setIntensity(i, 8);
     lc.clearDisplay(i);
@@ -89,13 +102,11 @@ void setup() {
   lcd.backlight();
   
   Serial.begin(9600);
-  Serial.print("start");
-  // Initialize button pins
+ 
   pinMode(btnL, INPUT);
   pinMode(btnR, INPUT);
 
-  // Load the first figure
-  loadNewFigure();
+  loadNewFigure();// Load the first figure
 }
 
 void loop() {
@@ -103,13 +114,24 @@ void loop() {
     if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
       active = true;
       resetGame();
-      Serial.println("Card detected and activated!");
     }
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("Scann card to");
-    lcd.setCursor(0,1);
-    lcd.print("play");
+
+    if(lostCount > 0){
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("You lost ");
+      lcd.print(lostCount);
+      lcd.print(" times");
+      lcd.setCursor(0,1);
+      lcd.print("Scann card again");
+    }
+    else{
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("Scann card to");
+      lcd.setCursor(0,1);
+      lcd.print("play");
+    }
   }
   else{
     lcd.clear();
@@ -236,8 +258,9 @@ bool checkCollision(int newY) {
 }
 
 bool checkLose() {
-  // Check the top row for any blocks
-  if (screen[0] != 0) {
+  if (screen[0] != 0) {  // Check the top row for any blocks
+    playLosingMelody();
+    lostCount++;
     return true;
   }
   return false;
@@ -253,13 +276,11 @@ void mergeFigureToScreen() {
 }
 
 void updateScreen() {
-  // Clear the display and redraw
-  for (int i = 0; i < MAX_DEVICES; i++) {
+  for (int i = 0; i < MAX_DEVICES; i++) { // Clear the display
     lc.clearDisplay(i);
   }
   
-  // Display the screen state
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < 16; i++) { // Display the screen 
     if (i < 8) {
       lc.setRow(0, i, screen[i]);
     } else {
@@ -267,8 +288,7 @@ void updateScreen() {
     }
   }
 
-  // Display the current figure
-  for (int i = 0; i < figureHeight(); i++) {
+  for (int i = 0; i < figureHeight(); i++) {  // Display the current figure
     if (y + i >= 0 && y + i < 16) {
       if (y + i < 8) {
         lc.setRow(0, y + i, screen[y + i] | figure[i]);
@@ -283,14 +303,11 @@ void checkLine() {
   for (int i = 0; i < 16; i++) {
     if (screen[i] == 0b11111111) {
       score += 10;
-      // Shift all rows above down
-      for (int j = i; j > 0; j--) {
+      for (int j = i; j > 0; j--) { // Shift all rows above down
         screen[j] = screen[j - 1];
       }
-      // Clear the top row
       screen[0] = 0;
-      // Check the same row again in case of consecutive full lines
-      i--;
+      i--; // Check the same row again in case of consecutive full lines
     }
   }
 }
@@ -311,4 +328,12 @@ void resetGame(){
   previousTime = millis();
   moveLeftTime = millis();
   moveRightTime = millis();
+}
+
+void playLosingMelody() {
+  for (int i = 0; i < 8; i++) {
+    tone(piezo, melody[i], noteDurations[i]);
+    delay(noteDurations[i] * 1.3);
+  }
+  noTone(piezo); 
 }
