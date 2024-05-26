@@ -284,13 +284,36 @@ bool canRotate(int newAngle) {
   angle = newAngle;
   getFigure(currentFigure);
   angle = tempAngle;
+
+  // Calculate the necessary shifts to align the shape properly after rotation
+  int oldLeft = x;
+  int oldRight = x + figureWidth() - 1;
+  int newLeft = x;
+  int newRight = x + figureWidth() - 1;
+  int shiftLeft = oldLeft - newLeft;
+  int shiftRight = oldRight - newRight;
+
+  // Shift the shape to its correct position
+  if (shiftLeft > 0) {
+    for (int i = 0; i < shiftLeft; i++) {
+      moveLeft();
+    }
+  } else if (shiftRight < 0) {
+    for (int i = 0; i < -shiftRight; i++) {
+      moveRight();
+    }
+  }
+
+  // Check for collisions after rotation and shifting
   for (int i = 0; i < figureHeight(); i++) {
     if ((figure[i] & screen[y + i]) != 0) {
-      return false;
+      return false; // Collision detected, cannot rotate
     }
   }
   return true;
 }
+
+
 void getFigure(int num) {
   memset(figure, 0, sizeof(figure));
   switch (num) {
