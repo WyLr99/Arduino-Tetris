@@ -37,7 +37,7 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 int btnL = 2;
 int btnR = 4;
-int btnRotate = 8;
+int btnDown = 8;
 
 int piezo = 3;
 
@@ -45,8 +45,6 @@ int btnLcurrent = LOW;
 int btnRcurrent = LOW;
 int btnLprevious = LOW;
 int btnRprevious = LOW;
-int btnRotatecurrent = LOW;
-int btnRotateprevious = LOW;
 
 // Piece position and type
 int x = 0; // x position of the piece (column)
@@ -126,8 +124,8 @@ int lostCount = 0;
 void loadNewFigure() {
   blockType = random(7);
   currentFigure = blockType;
-  angle = 0;
-  getFigure(blockType);
+  angle = random(4);
+  getFigure(blockType, angle);
   x = 0;
   y = -figureHeight(); // Start the figure above the visible area
 
@@ -154,7 +152,7 @@ void setup() {
  
   pinMode(btnL, INPUT);
   pinMode(btnR, INPUT);
-  pinMode(btnRotate, INPUT);
+  pinMode(btnDown, INPUT);
 
   loadNewFigure();// Load the first figure
 }
@@ -183,7 +181,7 @@ void loop() {
         lcd.print(" Times");
       lcd.setCursor(0,1);
       lcd.print("Scan Card Again");
-      delay(1000 );
+      delay(1000);
     }
     else{
       lcd.clear();
@@ -204,7 +202,6 @@ void loop() {
 
     btnLcurrent = digitalRead(btnL);
     btnRcurrent = digitalRead(btnR);
-    btnRotatecurrent = digitalRead(btnRotate);
 
     if (btnLcurrent != btnLprevious && btnLcurrent == HIGH) {
       moveLeftTime = timeNow;
@@ -225,15 +222,12 @@ void loop() {
       moveRight();
       tone(piezo,400,200);
     }
-    if(btnRotatecurrent != btnRotateprevious && btnRotatecurrent == HIGH){
-      rotateFigure(currentFigure, angle);
-      angle++;
-      tone(piezo,450,200);
-    }
-
+    if(digitalRead(btnDown) == HIGH)delayTime = 250;
+    else delayTime = 500;
+      
+   
     btnLprevious = btnLcurrent;
     btnRprevious = btnRcurrent;
-    btnRotateprevious = btnRotatecurrent;
 
     if (timeNow - previousTime >= delayTime) { // piece drop with delay time
       previousTime = timeNow;
@@ -248,73 +242,9 @@ void loop() {
     }
   }
 }
-void rotateFigure(int num, int angle) {
-  int oldLeft = x;
-  int oldRight = x + figureWidth() - 1;
-
-  int newAngle = (angle + 1) % 4;
-
-  if (canRotate(newAngle)) {
-    getFigureRotated(num, newAngle);
-
-    int newLeft = x;
-    int newRight = x + figureWidth() - 1;
-
-    // Calculate the necessary shifts to align the shape properly after rotation
-    int shiftLeft = oldLeft - newLeft;
-    int shiftRight = oldRight - newRight;
-
-    // Shift the shape to its correct position
-    if (shiftLeft > 0) {
-      for (int i = 0; i < shiftLeft; i++) {
-        moveLeft();
-      }
-    } else if (shiftRight < 0) {
-      for (int i = 0; i < -shiftRight; i++) {
-        moveRight();
-      }
-    }
-  }
-}
-
-bool canRotate(int newAngle) {
-  int tempFigure[8];
-  memcpy(tempFigure, figure, sizeof(figure));
-  int tempAngle = angle;
-  angle = newAngle;
-  getFigure(currentFigure);
-  angle = tempAngle;
-
-  // Calculate the necessary shifts to align the shape properly after rotation
-  int oldLeft = x;
-  int oldRight = x + figureWidth() - 1;
-  int newLeft = x;
-  int newRight = x + figureWidth() - 1;
-  int shiftLeft = oldLeft - newLeft;
-  int shiftRight = oldRight - newRight;
-
-  // Shift the shape to its correct position
-  if (shiftLeft > 0) {
-    for (int i = 0; i < shiftLeft; i++) {
-      moveLeft();
-    }
-  } else if (shiftRight < 0) {
-    for (int i = 0; i < -shiftRight; i++) {
-      moveRight();
-    }
-  }
-
-  // Check for collisions after rotation and shifting
-  for (int i = 0; i < figureHeight(); i++) {
-    if ((figure[i] & screen[y + i]) != 0) {
-      return false; // Collision detected, cannot rotate
-    }
-  }
-  return true;
-}
 
 
-void getFigure(int num) {
+void getFigure(int num, int angle) {
   memset(figure, 0, sizeof(figure));
   switch (num) {
     case 0: memcpy(figure, O[angle], sizeof(O[angle])); break;
@@ -326,17 +256,7 @@ void getFigure(int num) {
     case 6: memcpy(figure, S[angle], sizeof(S[angle])); break;
   }
 }
-void getFigureRotated(int num, int angle) {
-  switch (num) {
-    case 0: memcpy(figure, O[angle], sizeof(O[angle])); break;
-    case 1: memcpy(figure, L[angle], sizeof(L[angle])); break;
-    case 2: memcpy(figure, J[angle], sizeof(J[angle])); break;
-    case 3: memcpy(figure, T[angle], sizeof(T[angle])); break;
-    case 4: memcpy(figure, I[angle], sizeof(I[angle])); break;
-    case 5: memcpy(figure, Z[angle], sizeof(Z[angle])); break;
-    case 6: memcpy(figure, S[angle], sizeof(S[angle])); break;
-  }
-}
+
 
 void moveLeft() {
   if (canMoveLeft()) {
@@ -458,21 +378,7 @@ int figureHeight() {
   }
   return 0;
 }
-int figureWidth() {
-  int maxWidth = 0;
-  for (int i = 0; i < figureHeight(); i++) {
-    int width = 0;
-    for (int j = 0; j < 8; j++) {
-      if (figure[i] & (1 << j)) {
-        width = j + 1;
-      }
-    }
-    if (width > maxWidth) {
-      maxWidth = width;
-    }
-  }
-  return maxWidth;
-}
+
 
 
 void resetGame(){
