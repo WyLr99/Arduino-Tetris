@@ -148,8 +148,6 @@ void setup() {
   lcd.init();      
   lcd.backlight();
   
-  Serial.begin(9600);
- 
   pinMode(btnL, INPUT);
   pinMode(btnR, INPUT);
   pinMode(btnDown, INPUT);
@@ -160,6 +158,7 @@ void setup() {
 void loop() {
   if (!active) { // if not active
     if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+      tone(piezo,600,200);
       active = true;
       resetGame();
     }
@@ -222,8 +221,11 @@ void loop() {
       moveRight();
       tone(piezo,400,200);
     }
-    if(digitalRead(btnDown) == HIGH)delayTime = 250;
-    else delayTime = 500;
+    if(digitalRead(btnDown) == HIGH){
+      delayTime = 80;
+      tone(piezo, 150, 10);
+    }
+    else delayTime = regularDelay();
       
    
     btnLprevious = btnLcurrent;
@@ -237,13 +239,12 @@ void loop() {
     updateScreen();
 
     if (checkLose()) {
-      Serial.println("You lost!");
       active = false;
     }
-  }
+
 }
 
-
+}
 void getFigure(int num, int angle) {
   memset(figure, 0, sizeof(figure));
   switch (num) {
@@ -360,6 +361,7 @@ void updateScreen() {
 void checkLine() {
   for (int i = 0; i < 16; i++) {
     if (screen[i] == 0b11111111) {
+      tone(piezo,600,200);
       score += 10;
       for (int j = i; j > 0; j--) { // Shift all rows above down
         screen[j] = screen[j - 1];
@@ -379,8 +381,6 @@ int figureHeight() {
   return 0;
 }
 
-
-
 void resetGame(){
   memset(screen, 0, sizeof(screen));
   score = 0;
@@ -396,4 +396,12 @@ void playLosingMelody() {
     delay(noteDurations[i] * 1.3);
   }
   noTone(piezo); 
+}
+
+int regularDelay(){
+  int baseDelay = 500;
+  int inc = score % 50;
+  int newDelay = baseDelay - (inc*50);
+  if(newDelay < 80 ) return 250;
+  else return newDelay;
 }
